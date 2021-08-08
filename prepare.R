@@ -68,6 +68,6 @@ hsc.d <- with(hsc, data.frame(
 	peritoneal = select(peritoneal_cavity, -id)
 ));
 
-qwrite(hec, "data/hec.rds");
-qwrite(hsc, "data/hsc.rds");
+qwrite(hec.d, "data/hec.rds");
+qwrite(hsc.d, "data/hsc.rds");
 
