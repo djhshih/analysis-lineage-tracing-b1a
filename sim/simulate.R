@@ -1,0 +1,159 @@
+library(ggplot2)
+library(reshape2)
+library(io)
+
+out.fname <- filename("lineage-sim");
+pdf.fname <- insert(out.fname, ext="pdf");
+
+
+# --- Parameters
+
+# number of cell types
+J <- 5;
+
+# number of samples
+N <- 9;
+
+# number of analysis time points
+T <- 100;
+
+# unlabeled cells and labeled cells
+L <- 2;     
+
+# labeling time point 
+s <- 7;
+
+stopifnot(s < T)
+
+
+# --- Random variables
+
+set.seed(6)
+
+# unknown initial common progenitor size
+n0 <- 1000
+
+# unknown labeling efficiency
+#kappa <- runif(N);
+kappa <- seq(0.1, 0.9, by=0.1);
+
+# differentiation rate
+# rows: from;  columns: to
+A0 <- matrix(c(0, 0.05, 0.00, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
+A1 <- matrix(c(0, 0.05, 0.01, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
+A2 <- matrix(c(0, 0.05, 0, 0.01, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
+
+A <- A1;
+
+# ensure that the diagonals are 0
+stopifnot(diag(A) == rep(0, nrow(A)))
+
+# net proliferation rate
+# assume that beta is invariant across time
+#beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
+#beta <- c(0.3, 0.2, 0.1, 0.05, 0);
+beta <- c(0, 0.2, 0.1, 0.05, 0);
+#beta <- c(0, 0.01, 0.04, 4, 0);
+
+params <- list(
+	J = J, N = N, T = T, L = 2, s = s,
+	n0 = n0, kappa = kappa, A = A, beta = beta
+);
+
+
+# --- Initial conditions
+
+alpha.out <- rowSums(A);
+
+n <- array(0, dim = c(n=N, j=J, t=T, l=L));
+
+# only unlabeled common progenitor is present at t = 0
+n[1:N, 1, 1, 1] <- n0;
+
+# --- Iterate until labeling
+
+for (t in 2:s) {
+	n.tm1 <- array(n[1:N, 1:J, t - 1, 1], dim=c(N, J));
+	# net change = net proliferation + differentiation into - differentiation out of
+	n[1:N, 1:J, t, 1] <- pmax(0, n.tm1 + t(t(n.tm1) * beta) + n.tm1 %*% A  - t(t(n.tm1) * alpha.out));
+}
+
+# --- Labelling
+
+# label the first common progenitor
+
+m <- n[1:N, 1, s, 1];
+
+# unlabeled
+n[1:N, 1, s, 1] <- m * (1 - kappa);
+
+# labeled
+n[1:N, 1, s, 2] <- m * kappa;
+
+# all other cells remain unlabeled
+
+
+# --- Iterate until end of time
+
+for (t in (s+1):T) {
+	for (l in 1:2) {
+		# net change = net proliferation + differentiation into - differentiation out of
+		n.tm1 <- array(n[1:N, 1:J, t - 1, l], dim=c(N, J));
+		n[1:N, 1:J, t, l] <- pmax(0, n.tm1 + t(t(n.tm1) * beta) + n.tm1 %*% A  - t(t(n.tm1) * alpha.out));
+	}
+}
+
+# --- Calculate observed variable
+
+f <- n[1:N, 1:J, 1:T, 2] / ( pmax(1, n[1:N, 1:J, 1:T, 1] + n[1:N, 1:J, 1:T, 2]) );
+
+cell_factor <- function(j) {
+	factor(j, levels=1:J, labels=c("HEC", "HSC", "ST-HSC", "MPP", "other"))
+}
+
+# --- Generate plots
+
+graphics.off()
+
+f.d <- melt(f, varnames=names(dim(f)));
+f.d$j <- cell_factor(f.d$j);
+
+g <- ggplot(f.d, aes(x = t, y = value, colour = factor(j))) +
+	theme_classic() +
+	geom_line(linetype=2) + facet_grid(n ~ j) +
+	guides(colour = "none") +
+	xlab("analysis time") + ylab("% labelled")
+qdraw(g, width = 6, file = insert(pdf.fname, c("latent", "label-prop")))
+
+
+# normalize against the common progenitor
+fn <- f / f[1:N, rep(1, J), 1:T];
+fn <- apply(fn, c(2, 3), mean);
+
+fn.d <- melt(fn, varnames=names(dim(f)[-1]));
+fn.d$j <- cell_factor(fn.d$j);
+
+g <- ggplot(fn.d, aes(x = t, y = value, colour = factor(j))) +
+	theme_classic() +
+	geom_line(linetype=2) + facet_grid(j ~ .) +
+	guides(colour = "none") +
+	xlab("analysis time") + ylab("label ratio vs. HEC")
+qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
+
+
+# normalize against the second progenitor
+fn2 <- f / f[1:N, rep(2, J), 1:T];
+fn2 <- apply(fn2, c(2, 3), mean);
+
+fn2.d <- melt(fn2, varnames=names(dim(f)[-1]));
+fn2.d$j <- cell_factor(fn2.d$j);
+
+g <- ggplot(fn2.d[fn2.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
+	theme_classic() +
+	geom_line() + facet_grid(j ~ ., scales="free_y") +
+	guides(colour = "none") +
+	xlab("analysis time") + ylab("label ratio vs. HSC")
+qdraw(g, file = insert(pdf.fname, c("observed", "label-ratio")))
+
+qwrite(params, insert(out.fname, tag="params", ext="rds"));
+
