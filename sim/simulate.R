@@ -40,8 +40,8 @@ lambda <- seq(0.1, 0.9, by=0.1);
 # differentiation rate
 # rows: from;  columns: to
 A0 <- matrix(c(0, 0.05, 0.00, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
-A1 <- matrix(c(0, 0.05, 0.01, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
-A2 <- matrix(c(0, 0.05, 0, 0.01, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
+A1 <- matrix(c(0, 0.05, 0.2, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
+A2 <- matrix(c(0, 0.05, 0, 0.2, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
 
 A <- A1;
 
@@ -52,12 +52,13 @@ stopifnot(diag(A) == rep(0, nrow(A)))
 # assume that beta is invariant across time
 #beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
 #beta <- c(0.3, 0.2, 0.1, 0.05, 0);
-beta <- c(0.1, 0.2, 0.1, 0.05, 0);
-#beta <- c(0, 0.01, 0.04, 4, 0);
+beta <- c(0.2, 0.1, 0.1, 0.05, 0);
+#beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
-nl <- 1e9
-kappa <- c(10, 1, 2.9, 9, 52);
+nl <- 1e6
+#kappa <- c(10, 1, 2.9, 9, 52);
+kappa <- c(5, 1, 2.9, 9, 52);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
@@ -155,6 +156,7 @@ fn.d$j <- cell_factor(fn.d$j);
 
 g <- ggplot(fn.d, aes(x = t, y = value, colour = factor(j))) +
 	theme_classic() +
+	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
 	geom_line(linetype=2) + facet_grid(j ~ .) +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("label ratio vs. HEC")
@@ -170,6 +172,7 @@ fn2.d$j <- cell_factor(fn2.d$j);
 
 g <- ggplot(fn2.d[fn2.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
 	theme_classic() +
+	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
 	geom_line() + facet_grid(j ~ ., scales="free_y") +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("label ratio vs. HSC")
