@@ -2,6 +2,10 @@ library(io)
 library(ggplot2)
 library(dplyr)
 
+out.fname <- filename("lineage", path="plot", date=NA);
+pdf.fname <- insert(out.fname, ext="pdf");
+
+
 hec.w <- qread("data/hec_wide.rds");
 hsc.w <- qread("data/hsc_wide.rds");
 
@@ -62,7 +66,16 @@ ratio_trace_plot(hec.wn.e7.5, "peritoneal.b1a")
 # re-analyze peritoneal.b1a after removing the lone outlier
 outlier <- filter(hec.wn, group == "E7.5", peritoneal.b1a > 5)$id;
 filter(hec.wn, id %in% outlier);
-ratio_trace_plot(filter(hec.wn.e7.5, ! id %in% outlier), "peritoneal.b1a")
+
+qdraw(
+	ratio_trace_plot(hec.wn.e7.5, "peritoneal.b1a"),
+	file = insert(pdf.fname, c("hec", "ratio", "grid", "peritoneal", "b1a", "e7-5"))
+);
+
+qdraw(
+	ratio_trace_plot(filter(hec.wn.e7.5, ! id %in% outlier), "peritoneal.b1a"),
+	file = insert(pdf.fname, c("hec", "ratio", "grid", "peritoneal", "b1a", "e7-5", "outlier-rm"))
+);
 
 
 ratio_trace_plot(hsc.wn, "bm_fl.hsc")
@@ -85,16 +98,60 @@ count_trace_plots <- function(d) {
 		ylim(0, 100) +
 		guides(colour="none") +
 		stat_smooth(method="glm") +
-		geom_point()
+		geom_point() +
+		scale_x_continuous(n.breaks=3) +
+		theme(panel.spacing = unit(0.7, "lines"))
 }
 
-count_trace_plots(filter(hec.l, site == "bm_fl"));
-count_trace_plots(filter(hec.l, site == "spleen"));
-count_trace_plots(filter(hec.l, site == "thymus"));
+qdraw(
+	count_trace_plots(filter(hec.l, site == "bm_fl")),
+	width = 15, height = 5,
+	file = insert(pdf.fname, c("hec", "count", "grid", "bm_fl"))
+)
 
-count_trace_plots(filter(hsc.l, site == "bm_fl"));
-count_trace_plots(filter(hsc.l, site == "spleen"));
-count_trace_plots(filter(hsc.l, site == "thymus"));
+qdraw(
+	count_trace_plots(filter(hec.l, site == "spleen")),
+	width = 9, height = 5,
+	file = insert(pdf.fname, c("hec", "count", "grid", "spleen"))
+)
+
+qdraw(
+	count_trace_plots(filter(hec.l, site == "thymus")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hec", "count", "grid", "thymus"))
+)
+
+qdraw(
+	count_trace_plots(filter(hec.l, site == "peritoneal_cavity")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hec", "count", "grid", "peritoneal"))
+)
+
+
+qdraw(
+	count_trace_plots(filter(hsc.l, site == "bm_fl")),
+	width = 15, height = 5,
+	file = insert(pdf.fname, c("hsc", "count", "grid", "bm_fl"))
+)
+
+qdraw(
+	count_trace_plots(filter(hsc.l, site == "spleen")),
+	width = 9, height = 5,
+	file = insert(pdf.fname, c("hsc", "count", "grid", "spleen"))
+)
+
+qdraw(
+	count_trace_plots(filter(hsc.l, site == "thymus")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hsc", "count", "grid", "thymus"))
+)
+
+qdraw(
+	count_trace_plots(filter(hsc.l, site == "peritoneal_cavity")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hsc", "count", "grid", "peritonael"))
+)
+
 
 # ---
 
@@ -110,22 +167,63 @@ ratio_trace_plots <- function(d, ylim=NULL) {
 		geom_hline(yintercept=1, colour="grey60") +
 		guides(colour="none") +
 		coord_cartesian(ylim = ylim) +
-		facet_grid(group ~ cell) +
 		stat_smooth(method="glm") +
-		geom_point()
+		geom_point() +
+		scale_x_continuous(n.breaks=3) +
+		theme(panel.spacing = unit(0.7, "lines"))
 }
 
-ratio_trace_plots(filter(hec.ln, site == "bm_fl"), ylim=c(0, 4));
+qdraw(
+	ratio_trace_plots(filter(hec.ln, site == "bm_fl"), ylim=c(0, 4)),
+	width = 15, height = 5,
+	file = insert(pdf.fname, c("hec", "ratio", "grid", "bm_fl"))
+)
+
+qdraw(
+	ratio_trace_plots(filter(hec.ln, site == "spleen")),
+	width = 9, height = 5,
+	file = insert(pdf.fname, c("hec", "ratio", "grid", "spleen"))
+)
+
+qdraw(
+	ratio_trace_plots(filter(hec.ln, site == "thymus")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hec", "ratio", "grid", "thymus"))
+)
+
+qdraw(
+	ratio_trace_plots(filter(hec.ln, site == "peritoneal_cavity"), ylim=c(0, 8)),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hec", "ratio", "grid", "peritoneal"))
+)
+
 ratio_trace_plots(filter(hec.ln, site == "neonatal_spleen"));
-ratio_trace_plots(filter(hec.ln, site == "spleen"));
-ratio_trace_plots(filter(hec.ln, site == "thymus"));
-ratio_trace_plots(filter(hec.ln, site == "peritoneal_cavity"), ylim=c(0, 8));
 
-ratio_trace_plots(filter(hsc.ln, site == "bm_fl"));
+
+qdraw(
+	ratio_trace_plots(filter(hsc.ln, site == "bm_fl")),
+	width = 15, height = 5,
+	file = insert(pdf.fname, c("hsc", "ratio", "grid", "bm_fl"))
+)
+
+qdraw(
+	ratio_trace_plots(filter(hsc.ln, site == "spleen")),
+	width = 9, height = 5,
+	file = insert(pdf.fname, c("hsc", "ratio", "grid", "spleen"))
+)
+
+qdraw(
+	ratio_trace_plots(filter(hsc.ln, site == "thymus")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hsc", "ratio", "grid", "thymus"))
+)
+
+qdraw(
+	ratio_trace_plots(filter(hsc.ln, site == "peritoneal_cavity")),
+	width = 6.5, height = 5,
+	file = insert(pdf.fname, c("hsc", "ratio", "grid", "peritoneal"))
+)
+
 ratio_trace_plots(filter(hsc.ln, site == "neonatal_spleen"));
-ratio_trace_plots(filter(hsc.ln, site == "spleen"));
-ratio_trace_plots(filter(hsc.ln, site == "thymus"));
-ratio_trace_plots(filter(hsc.ln, site == "peritoneal_cavity"));
 
-# ---
 
