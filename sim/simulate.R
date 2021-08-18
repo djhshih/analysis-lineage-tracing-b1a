@@ -21,9 +21,9 @@ T <- 100;
 L <- 2;     
 
 # labeling time point 
-s <- 7;
+s <- 10;
 
-stopifnot(s < T)
+stopifnot(s > 1 && s < T)
 
 
 # --- Random variables
@@ -31,11 +31,11 @@ stopifnot(s < T)
 set.seed(6)
 
 # unknown initial common progenitor size
-n0 <- 1000
+n0 <- 1e3;
 
 # unknown labeling efficiency
-#kappa <- runif(N);
-kappa <- seq(0.1, 0.9, by=0.1);
+#lambda <- runif(N);
+lambda <- seq(0.1, 0.9, by=0.1);
 
 # differentiation rate
 # rows: from;  columns: to
@@ -52,12 +52,17 @@ stopifnot(diag(A) == rep(0, nrow(A)))
 # assume that beta is invariant across time
 #beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
 #beta <- c(0.3, 0.2, 0.1, 0.05, 0);
-beta <- c(0, 0.2, 0.1, 0.05, 0);
+beta <- c(0.1, 0.2, 0.1, 0.05, 0);
 #beta <- c(0, 0.01, 0.04, 4, 0);
+
+# relative limiting capacities
+nl <- 1e9
+kappa <- c(10, 1, 2.9, 9, 52);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
-	n0 = n0, kappa = kappa, A = A, beta = beta
+	n0 = n0, lambda = lambda, A = A, beta = beta,
+	kappa = kappa
 );
 
 
@@ -72,10 +77,27 @@ n[1:N, 1, 1, 1] <- n0;
 
 # --- Iterate until labeling
 
+# net change = net proliferation + differentiation into - differentiation out of
+update_ntl_exp <- function(n.tm1.l) {
+	pmax(
+		0,
+		n.tm1.l + t(t(n.tm1.l) * beta) + n.tm1.l %*% A  - t(t(n.tm1.l) * alpha.out
+	))
+}
+
+update_ntl_logistic <- function(n.tm1.l) {
+	pmax(
+		0,
+		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1.l) / (nl*kappa))) + n.tm1.l %*% A  - t(t(n.tm1.l) * alpha.out
+	))
+}
+
+update_ntl <- update_ntl_logistic;
+
 for (t in 2:s) {
-	n.tm1 <- array(n[1:N, 1:J, t - 1, 1], dim=c(N, J));
-	# net change = net proliferation + differentiation into - differentiation out of
-	n[1:N, 1:J, t, 1] <- pmax(0, n.tm1 + t(t(n.tm1) * beta) + n.tm1 %*% A  - t(t(n.tm1) * alpha.out));
+	# all cells are unlabeled right now,
+	# so we only update the unlabeled compartment
+	n[1:N, 1:J, t, 1] <- update_ntl(array(n[1:N, 1:J, t - 1, 1], dim=c(N, J)))
 }
 
 # --- Labelling
@@ -85,10 +107,10 @@ for (t in 2:s) {
 m <- n[1:N, 1, s, 1];
 
 # unlabeled
-n[1:N, 1, s, 1] <- m * (1 - kappa);
+n[1:N, 1, s, 1] <- m * (1 - lambda);
 
 # labeled
-n[1:N, 1, s, 2] <- m * kappa;
+n[1:N, 1, s, 2] <- m * lambda;
 
 # all other cells remain unlabeled
 
@@ -97,9 +119,7 @@ n[1:N, 1, s, 2] <- m * kappa;
 
 for (t in (s+1):T) {
 	for (l in 1:2) {
-		# net change = net proliferation + differentiation into - differentiation out of
-		n.tm1 <- array(n[1:N, 1:J, t - 1, l], dim=c(N, J));
-		n[1:N, 1:J, t, l] <- pmax(0, n.tm1 + t(t(n.tm1) * beta) + n.tm1 %*% A  - t(t(n.tm1) * alpha.out));
+		n[1:N, 1:J, t, l] <- update_ntl(array(n[1:N, 1:J, t - 1, l], dim=c(N, J)))
 	}
 }
 
