@@ -15,13 +15,14 @@ J <- 5;
 N <- 9;
 
 # number of analysis time points
-T <- 100;
+T <- 300;
 
 # unlabeled cells and labeled cells
 L <- 2;     
 
 # labeling time point 
 s <- 10;
+#s <- 150;
 
 stopifnot(s > 1 && s < T)
 
@@ -43,7 +44,9 @@ A0 <- matrix(c(0, 0.05, 0.00, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0,
 A1 <- matrix(c(0, 0.05, 0.2, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
 A2 <- matrix(c(0, 0.05, 0, 0.2, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
 
+#A <- A0;
 A <- A1;
+#A <- A2;
 
 # ensure that the diagonals are 0
 stopifnot(diag(A) == rep(0, nrow(A)))
@@ -51,14 +54,14 @@ stopifnot(diag(A) == rep(0, nrow(A)))
 # net proliferation rate
 # assume that beta is invariant across time
 #beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
-#beta <- c(0.3, 0.2, 0.1, 0.05, 0);
-beta <- c(0.2, 0.1, 0.1, 0.05, 0);
+beta <- c(0.3, 0.2, 0.1, 0.05, 0);
+#beta <- c(0, 0.1, 0.3, 0.05, 0);
 #beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
-nl <- 1e6
-#kappa <- c(10, 1, 2.9, 9, 52);
-kappa <- c(5, 1, 2.9, 9, 52);
+nl <- 1e9;
+kappa <- c(10, 1, 2.9, 9, 52);
+#kappa <- c(10, 1, 3, 9, 50);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
@@ -70,6 +73,7 @@ params <- list(
 # --- Initial conditions
 
 alpha.out <- rowSums(A);
+kappa.p <- nl * kappa;
 
 n <- array(0, dim = c(n=N, j=J, t=T, l=L));
 
@@ -86,10 +90,11 @@ update_ntl_exp <- function(n.tm1.l) {
 	))
 }
 
-update_ntl_logistic <- function(n.tm1.l) {
+# @param n.tm1 total size across both labeled and unlabeled compartments
+update_ntl_logistic <- function(n.tm1.l, n.tm1) {
 	pmax(
 		0,
-		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1.l) / (nl*kappa))) + n.tm1.l %*% A  - t(t(n.tm1.l) * alpha.out
+		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1) / kappa.p)) + n.tm1.l %*% A  - t(t(n.tm1.l) * alpha.out
 	))
 }
 
@@ -98,7 +103,12 @@ update_ntl <- update_ntl_logistic;
 for (t in 2:s) {
 	# all cells are unlabeled right now,
 	# so we only update the unlabeled compartment
-	n[1:N, 1:J, t, 1] <- update_ntl(array(n[1:N, 1:J, t - 1, 1], dim=c(N, J)))
+	n[1:N, 1:J, t, 1] <- update_ntl(
+		n[1:N, 1:J, t - 1, 1],
+		#array(n[1:N, 1:J, t - 1, 1], dim=c(N, J))
+		apply(n[1:N, 1:J, t - 1, ], c(1, 2), sum)
+		#n[1:N, 1:J, t - 1, 1] + n[1:N, 1:J, t - 1, 2]
+	);
 }
 
 # --- Labelling
@@ -120,7 +130,12 @@ n[1:N, 1, s, 2] <- m * lambda;
 
 for (t in (s+1):T) {
 	for (l in 1:2) {
-		n[1:N, 1:J, t, l] <- update_ntl(array(n[1:N, 1:J, t - 1, l], dim=c(N, J)))
+		n[1:N, 1:J, t, l] <- update_ntl(
+			n[1:N, 1:J, t - 1, l],
+			#array(n[1:N, 1:J, t - 1, l], dim=c(N, J))
+			apply(n[1:N, 1:J, t - 1, ], c(1, 2), sum)
+			#n[1:N, 1:J, t - 1, 1] + n[1:N, 1:J, t - 1, 2]
+		);
 	}
 }
 
@@ -157,7 +172,8 @@ fn.d$j <- cell_factor(fn.d$j);
 g <- ggplot(fn.d, aes(x = t, y = value, colour = factor(j))) +
 	theme_classic() +
 	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
-	geom_line(linetype=2) + facet_grid(j ~ .) +
+	geom_line(linetype=2) + 
+	facet_grid(j ~ ., scales="free_y") +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("label ratio vs. HEC")
 qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
