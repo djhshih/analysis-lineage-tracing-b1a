@@ -65,91 +65,110 @@ kappa <- c(10, 1, 2.9, 9, 52);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
-	n0 = n0, lambda = lambda, A = A, beta = beta,
+	n0 = n0, nl = nl,
+	lambda = lambda, A = A, beta = beta,
 	kappa = kappa
 );
 
 
-# --- Initial conditions
-
-alpha.out <- rowSums(A);
-kappa.p <- nl * kappa;
-
-n <- array(0, dim = c(n=N, j=J, t=T, l=L));
-
-# only unlabeled common progenitor is present at t = 0
-n[1:N, 1, 1, 1] <- n0;
-
-# --- Iterate until labeling
-
-# net change = net proliferation + differentiation into - differentiation out of
-update_ntl_exp <- function(n.tm1.l) {
-	pmax(
-		0,
-		n.tm1.l + t(t(n.tm1.l) * beta) + n.tm1.l %*% A  - t(t(n.tm1.l) * alpha.out
-	))
-}
-
-# @param n.tm1 total size across both labeled and unlabeled compartments
-update_ntl_logistic <- function(n.tm1.l, n.tm1) {
-	pmax(
-		0,
-		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1) / kappa.p)) + n.tm1.l %*% A  - t(t(n.tm1.l) * alpha.out
-	))
-}
-
-update_ntl <- update_ntl_logistic;
-
-for (t in 2:s) {
-	# all cells are unlabeled right now,
-	# so we only update the unlabeled compartment
-	n[1:N, 1:J, t, 1] <- update_ntl(
-		n[1:N, 1:J, t - 1, 1],
-		#array(n[1:N, 1:J, t - 1, 1], dim=c(N, J))
-		apply(n[1:N, 1:J, t - 1, ], c(1, 2), sum)
-		#n[1:N, 1:J, t - 1, 1] + n[1:N, 1:J, t - 1, 2]
-	);
-}
-
-# --- Labelling
-
-# label the first common progenitor
-
-m <- n[1:N, 1, s, 1];
-
-# unlabeled
-n[1:N, 1, s, 1] <- m * (1 - lambda);
-
-# labeled
-n[1:N, 1, s, 2] <- m * lambda;
-
-# all other cells remain unlabeled
-
-
-# --- Iterate until end of time
-
-for (t in (s+1):T) {
-	for (l in 1:2) {
-		n[1:N, 1:J, t, l] <- update_ntl(
-			n[1:N, 1:J, t - 1, l],
-			#array(n[1:N, 1:J, t - 1, l], dim=c(N, J))
-			apply(n[1:N, 1:J, t - 1, ], c(1, 2), sum)
-			#n[1:N, 1:J, t - 1, 1] + n[1:N, 1:J, t - 1, 2]
-		);
-	}
-}
-
-# --- Calculate observed variable
-
-f <- n[1:N, 1:J, 1:T, 2] / ( pmax(1, n[1:N, 1:J, 1:T, 1] + n[1:N, 1:J, 1:T, 2]) );
+# --- Functions
 
 cell_factor <- function(j) {
 	factor(j, levels=1:J, labels=c("HEC", "HSC", "ST-HSC", "MPP", "other"))
 }
 
+# net change = net proliferation + differentiation into - differentiation out of
+update_ntl_exp <- function(n.tm1.l, n.tm1, params) {
+	pmax(
+		0,
+		n.tm1.l + t(t(n.tm1.l) * beta) + n.tm1.l %*% A  - t(t(n.tm1.l) * params$alpha.out
+	))
+}
+
+# @param n.tm1.l   compartment size for selected label component at t - 1
+# @param n.tm1     total size across both labeled and unlabeled compartments
+#                  at t - 1
+update_ntl_logistic <- function(n.tm1.l, n.tm1, params) {
+	pmax(
+		0,
+		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% A  - t(t(n.tm1.l) * params$alpha.out
+	))
+}
+
+
+# simulate cell differentiation trajectory
+simulate_trajectory <- function(params, update_ntl) {
+
+	# Setup initial conditions
+
+	params <- within(params,
+		{
+			alpha.out <- rowSums(A);
+			kappa.p <- nl * kappa;
+		}
+	);
+
+	n <- with(params, array(0, dim = c(n=N, j=J, t=T, l=L)));
+
+	# only unlabeled common progenitor is present at t = 0
+	n[, 1, 1, 1] <- params$n0;
+
+
+	# Iterate until labeling
+
+	for (t in 2:params$s) {
+		# all cells are unlabeled right now,
+		# so we only update the unlabeled compartment
+		n[, , t, 1] <- update_ntl(
+			n[, , t - 1, 1],
+			apply(n[, , t - 1, ], c(1, 2), sum),
+			params
+		);
+	}
+
+
+	# Apply labeling
+
+	# label the first common progenitor
+	m <- n[, 1, params$s, 1];
+
+	# unlabeled
+	n[, 1, params$s, 1] <- with(params, m * (1 - lambda));
+
+	# labeled
+	n[, 1, params$s, 2] <- with(params, m * lambda);
+
+	# all other cells remain unlabeled
+
+
+	# Iterate until end of time
+
+	for (t in (params$s+1):params$T) {
+		for (l in 1:params$L) {
+			n[, , t, l] <- update_ntl(
+				n[, , t - 1, l],
+				apply(n[, , t - 1, ], c(1, 2), sum),
+				params
+			);
+		}
+	}
+
+	# Calculate observed variable
+
+	f <- n[, , , params$L] / pmax(1, apply(n, c(1, 2, 3), sum));
+
+	list(n = n, f = f)
+}
+
+# --- 
+
+out <- simulate_trajectory(params, update_ntl_logistic);
+
 # --- Generate plots
 
 graphics.off()
+
+f <- out$f;
 
 f.d <- melt(f, varnames=names(dim(f)));
 f.d$j <- cell_factor(f.d$j);
