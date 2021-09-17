@@ -1,6 +1,7 @@
 library(ggplot2)
 library(reshape2)
 library(io)
+library(dplyr)
 
 out.fname <- filename("lineage-sim");
 pdf.fname <- insert(out.fname, ext="pdf");
@@ -12,7 +13,7 @@ pdf.fname <- insert(out.fname, ext="pdf");
 J <- 5;
 
 # number of samples
-N <- 9;
+N <- 4;
 
 # number of analysis time points
 T <- 300;
@@ -36,7 +37,7 @@ n0 <- 1e3;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
-lambda <- seq(0.1, 0.9, by=0.1);
+lambda <- seq(0.1, 0.9, length.out=N);
 
 # differentiation rate
 # rows: from;  columns: to
@@ -162,53 +163,75 @@ simulate_trajectory <- function(params, update_ntl) {
 
 # --- 
 
-out <- simulate_trajectory(params, update_ntl_logistic);
+ss <- c(10, 20, 40, 60, 80);
+
+outs <- lapply(ss,
+	function(s) {
+		params2 <- params;
+		params2$s <- s;
+		simulate_trajectory(params2, update_ntl_logistic)
+	}
+);
 
 # --- Generate plots
 
 graphics.off()
 
+fs <- lapply(outs, function(out) out$f);
+names(fs) <- ss;
+
 f <- out$f;
 
-f.d <- melt(f, varnames=names(dim(f)));
-f.d$j <- cell_factor(f.d$j);
+reshape_fractions <- function(fs) {
+	f.d <- melt(fs, varnames=names(dim(fs[[1]])));
+	f.d$s <- as.integer(f.d$L1); f.d$L1 <- NULL;
+	f.d$j <- cell_factor(f.d$j);
 
-g <- ggplot(f.d, aes(x = t, y = value, colour = factor(j))) +
+	f.d
+}
+
+f.d <- reshape_fractions(fs);
+
+g <- ggplot(filter(f.d, n == 1), aes(x = t, y = value, colour = j)) +
 	theme_classic() +
-	geom_line(linetype=2) + facet_grid(n ~ j) +
+	geom_line(linetype=2) + facet_grid(s ~ j) +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("% labelled")
 qdraw(g, width = 6, file = insert(pdf.fname, c("latent", "label-prop")))
 
+stop()
+
+# normalize fractions against the jth component,
+# and average over samples
+normalize_fractions <- function(f, j) {
+	fn <- f / f[, rep(j, params$J), ];
+	apply(fn, c(2, 3), mean)
+}
 
 # normalize against the common progenitor
-fn <- f / f[1:N, rep(1, J), 1:T];
-fn <- apply(fn, c(2, 3), mean);
+fns <- lapply(fs, function(f) normalize_fractions(f, 1));
 
-fn.d <- melt(fn, varnames=names(dim(f)[-1]));
-fn.d$j <- cell_factor(fn.d$j);
+fn.d <- reshape_fractions(fns);
 
-g <- ggplot(fn.d, aes(x = t, y = value, colour = factor(j))) +
+g <- ggplot(fn.d, aes(x = t, y = value, colour = j)) +
 	theme_classic() +
 	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
 	geom_line(linetype=2) + 
-	facet_grid(j ~ ., scales="free_y") +
+	facet_grid(s ~ j, scales="free_y") +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("label ratio vs. HEC")
 qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
 
 
 # normalize against the second progenitor
-fn2 <- f / f[1:N, rep(2, J), 1:T];
-fn2 <- apply(fn2, c(2, 3), mean);
+fn2s <- lapply(fs, function(f) normalize_fractions(f, 2));
 
-fn2.d <- melt(fn2, varnames=names(dim(f)[-1]));
-fn2.d$j <- cell_factor(fn2.d$j);
+fn2.d <- reshape_fractions(fn2s);
 
 g <- ggplot(fn2.d[fn2.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
 	theme_classic() +
 	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
-	geom_line() + facet_grid(j ~ ., scales="free_y") +
+	geom_line() + facet_grid(s ~ j, scales="free_y") +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("label ratio vs. HSC")
 qdraw(g, file = insert(pdf.fname, c("observed", "label-ratio")))
