@@ -32,6 +32,11 @@ stopifnot(s > 1 && s < T)
 
 set.seed(6)
 
+cell.types <- c("HEC", "fetal HSC", "adult HSC", "MPP", "B-1 pro");
+stopifnot(length(cell.types) == J);
+
+cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro");
+
 # unknown initial common progenitor size
 n0 <- 1e3;
 
@@ -39,15 +44,26 @@ n0 <- 1e3;
 #lambda <- runif(N);
 lambda <- seq(0.1, 0.9, length.out=N);
 
-# differentiation rate
+# differentiation rates
 # rows: from;  columns: to
-A0 <- matrix(c(0, 0.05, 0.00, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
-A1 <- matrix(c(0, 0.05, 0.2, 0, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
-A2 <- matrix(c(0, 0.05, 0, 0.2, 0,  0, 0, 0.009, 0, 0,   0, 0, 0, 0.045, 0,  0, 0, 0, 0, 1,  0, 0, 0, 0, 0), nrow=J, byrow=TRUE);
+
+A0 <- matrix(
+	c(
+		0, 0.05, 0.00, 0, 0,
+		0, 0, 0.01, 0.01, 0,
+		0, 0, 0, 0.01, 0,
+		0, 0, 0, 0, 1,
+		0, 0, 0, 0, 0
+	),
+	nrow=J, byrow=TRUE
+);
+
+A1 <- A0;
+A1[1, 4] <- 0.005;
+
 
 #A <- A0;
 A <- A1;
-#A <- A2;
 
 # ensure that the diagonals are 0
 stopifnot(diag(A) == rep(0, nrow(A)))
@@ -55,14 +71,13 @@ stopifnot(diag(A) == rep(0, nrow(A)))
 # net proliferation rate
 # assume that beta is invariant across time
 #beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
-beta <- c(0.3, 0.2, 0.1, 0.05, 0);
+beta <- c(0.3, 0, 0.1, 0.2, 0.05);
 #beta <- c(0, 0.1, 0.3, 0.05, 0);
 #beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
 nl <- 1e9;
-kappa <- c(10, 1, 2.9, 9, 52);
-#kappa <- c(10, 1, 3, 9, 50);
+kappa <- c(10, 1, 3, 9, 52);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
@@ -74,8 +89,8 @@ params <- list(
 
 # --- Functions
 
-cell_factor <- function(j) {
-	factor(j, levels=1:J, labels=c("HEC", "HSC", "ST-HSC", "MPP", "other"))
+cell_factor <- function(j, cell.types) {
+	factor(j, levels=1:length(cell.types), labels=cell.types)
 }
 
 # net change = net proliferation + differentiation into - differentiation out of
@@ -156,41 +171,42 @@ simulate_trajectory <- function(params, update_ntl) {
 
 	# Calculate observed variable
 
-	f <- n[, , , params$L] / pmax(1, apply(n, c(1, 2, 3), sum));
-
-	list(n = n, f = f)
+	n
 }
 
 # --- 
 
 ss <- c(10, 20, 40, 60, 80);
 
-outs <- lapply(ss,
+ns <- lapply(ss,
 	function(s) {
 		params2 <- params;
 		params2$s <- s;
 		simulate_trajectory(params2, update_ntl_logistic)
 	}
 );
+names(ns) <- ss;
+
+calculate_fractions <- function(n) {
+	n[, , , dim(n)[4]] / pmax(1, apply(n, c(1, 2, 3), sum));
+}
+
+fs <- lapply(ns, calculate_fractions);
 
 # --- Generate plots
 
 graphics.off()
 
-fs <- lapply(outs, function(out) out$f);
-names(fs) <- ss;
 
-f <- out$f;
-
-reshape_fractions <- function(fs) {
+reshape_fractions <- function(fs, cell.types) {
 	f.d <- melt(fs, varnames=names(dim(fs[[1]])));
 	f.d$s <- as.integer(f.d$L1); f.d$L1 <- NULL;
-	f.d$j <- cell_factor(f.d$j);
+	f.d$j <- cell_factor(f.d$j, cell.types);
 
 	f.d
 }
 
-f.d <- reshape_fractions(fs);
+f.d <- reshape_fractions(fs, cell.types);
 
 g <- ggplot(filter(f.d, n == 1), aes(x = t, y = value, colour = j)) +
 	theme_classic() +
@@ -199,19 +215,17 @@ g <- ggplot(filter(f.d, n == 1), aes(x = t, y = value, colour = j)) +
 	xlab("analysis time") + ylab("% labelled")
 qdraw(g, width = 6, file = insert(pdf.fname, c("latent", "label-prop")))
 
-stop()
-
 # normalize fractions against the jth component,
 # and average over samples
 normalize_fractions <- function(f, j) {
-	fn <- f / f[, rep(j, params$J), ];
+	fn <- f / f[, rep(j, dim(f)[2]), ];
 	apply(fn, c(2, 3), mean)
 }
 
 # normalize against the common progenitor
 fns <- lapply(fs, function(f) normalize_fractions(f, 1));
 
-fn.d <- reshape_fractions(fns);
+fn.d <- reshape_fractions(fns, cell.types);
 
 g <- ggplot(fn.d, aes(x = t, y = value, colour = j)) +
 	theme_classic() +
@@ -222,17 +236,28 @@ g <- ggplot(fn.d, aes(x = t, y = value, colour = j)) +
 	xlab("analysis time") + ylab("label ratio vs. HEC")
 qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
 
+combine_populations <- function(n, from, to) {
+	n[, from, , ] <- n[, from, , ] + n[, to, , ];
+	n[, -to, , ]
+}
+
+# combine second and third populations because
+# they are not distinguishable during observation
+ns.obs <- lapply(ns, combine_populations, from=2, to=3);
+
+fs.obs <- lapply(ns.obs, calculate_fractions);
 
 # normalize against the second progenitor
-fn2s <- lapply(fs, function(f) normalize_fractions(f, 2));
+fns.obs <- lapply(fs.obs, function(f) normalize_fractions(f, 2));
 
-fn2.d <- reshape_fractions(fn2s);
+fn.obs.d <- reshape_fractions(fns.obs, cell.types.obs);
 
-g <- ggplot(fn2.d[fn2.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
+g <- ggplot(fn.obs.d[fn.obs.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
 	theme_classic() +
 	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
 	geom_line() + facet_grid(s ~ j, scales="free_y") +
 	guides(colour = "none") +
+	ylim(0, 2) +
 	xlab("analysis time") + ylab("label ratio vs. HSC")
 qdraw(g, file = insert(pdf.fname, c("observed", "label-ratio")))
 
