@@ -3,14 +3,14 @@ library(reshape2)
 library(io)
 library(dplyr)
 
-out.fname <- filename("lineage-sim");
+#out.fname <- filename("lineage-sim");
 pdf.fname <- insert(out.fname, ext="pdf");
 
 
 # --- Parameters
 
 # number of cell types
-J <- 5;
+J <- 6;
 
 # number of samples
 N <- 4;
@@ -21,9 +21,12 @@ T <- 300;
 # unlabeled cells and labeled cells
 L <- 2;     
 
-# labeling time point 
-s <- 10;
-#s <- 150;
+# time offset in order to account for unobservable period
+s <- 5;
+
+# labelling times
+ss <- c(10, 20, 30, 40, 50, 60) + s;
+#ss <- seq(7, 12) + s;
 
 stopifnot(s > 1 && s < T)
 
@@ -32,13 +35,13 @@ stopifnot(s > 1 && s < T)
 
 set.seed(6)
 
-cell.types <- c("HEC", "fetal HSC", "adult HSC", "MPP", "B-1 pro");
+cell.types <- c("HEC", "fetal HSC", "adult HSC", "MPP", "B-1 pro", "B-1");
 stopifnot(length(cell.types) == J);
 
-cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro");
+cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro", "B-1");
 
 # unknown initial common progenitor size
-n0 <- 1e3;
+n0 <- 1e12;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
@@ -49,21 +52,26 @@ lambda <- seq(0.1, 0.9, length.out=N);
 
 A0 <- matrix(
 	c(
-		0, 0.05, 0.00, 0, 0,
-		0, 0, 0.01, 0.01, 0,
-		0, 0, 0, 0.01, 0,
-		0, 0, 0, 0, 1,
-		0, 0, 0, 0, 0
+		0, 0.05, 0, 0, 0, 0,
+		0, 0, 0.1, 0.2, 0, 0,
+		0, 0, 0, 0.05, 0, 0,
+		0, 0, 0, 0, 0.2, 0,
+		0, 0, 0, 0, 0, 0.2,
+		0, 0, 0, 0, 0, 0
 	),
 	nrow=J, byrow=TRUE
 );
 
 A1 <- A0;
-A1[1, 4] <- 0.005;
+A1[1, 4] <- 0.1;
+
+A2 <- A1;
+A2[1, 5] <- 0.2;
 
 
 #A <- A0;
-A <- A1;
+#A <- A1;
+A <- A2;
 
 # ensure that the diagonals are 0
 stopifnot(diag(A) == rep(0, nrow(A)))
@@ -71,13 +79,13 @@ stopifnot(diag(A) == rep(0, nrow(A)))
 # net proliferation rate
 # assume that beta is invariant across time
 #beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
-beta <- c(0.3, 0, 0.1, 0.2, 0.05);
+beta <- c(0, 0, 0.05, 0.5, 0.1, 0);
 #beta <- c(0, 0.1, 0.3, 0.05, 0);
 #beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
 nl <- 1e9;
-kappa <- c(10, 1, 3, 9, 52);
+kappa <- c(1, 1, 0.1, 9, 52);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
@@ -176,13 +184,13 @@ simulate_trajectory <- function(params, update_ntl) {
 
 # --- 
 
-ss <- c(10, 20, 40, 60, 80);
 
 ns <- lapply(ss,
 	function(s) {
 		params2 <- params;
 		params2$s <- s;
 		simulate_trajectory(params2, update_ntl_logistic)
+		#simulate_trajectory(params2, update_ntl_exp)
 	}
 );
 names(ns) <- ss;
@@ -208,7 +216,7 @@ reshape_fractions <- function(fs, cell.types) {
 
 f.d <- reshape_fractions(fs, cell.types);
 
-g <- ggplot(filter(f.d, n == 1), aes(x = t, y = value, colour = j)) +
+g <- ggplot(filter(f.d, n == params$N), aes(x = t, y = value, colour = j)) +
 	theme_classic() +
 	geom_line(linetype=2) + facet_grid(s ~ j) +
 	guides(colour = "none") +
@@ -234,16 +242,27 @@ g <- ggplot(fn.d, aes(x = t, y = value, colour = j)) +
 	facet_grid(s ~ j, scales="free_y") +
 	guides(colour = "none") +
 	xlab("analysis time") + ylab("label ratio vs. HEC")
-qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
+#qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
 
 combine_populations <- function(n, from, to) {
-	n[, from, , ] <- n[, from, , ] + n[, to, , ];
-	n[, -to, , ]
+	n[, to, , ] <- n[, to, , ] + n[, from, , ];
+	n[, -from, , ]
 }
+
 
 # combine second and third populations because
 # they are not distinguishable during observation
-ns.obs <- lapply(ns, combine_populations, from=2, to=3);
+ns.obs <- lapply(ns, combine_populations, from=3, to=2);
+
+plot(ns[[1]][1, 1, , 1], type="l")
+plot(ns[[1]][1, 2, , 1], type="l")
+plot(ns[[1]][1, 3, , 1], type="l")
+plot(ns[[1]][1, 4, , 1], type="l")
+plot(ns[[1]][1, 5, , 1], type="l")
+plot(ns[[1]][1, 6, , 1], type="l")
+
+plot(ns[[1]][1, 2, , 2] + ns[[1]][1, 3, , 2], type="l")
+#plot(ns.obs[[1]][1, 2, , 1], type="l")
 
 fs.obs <- lapply(ns.obs, calculate_fractions);
 
@@ -257,7 +276,7 @@ g <- ggplot(fn.obs.d[fn.obs.d$j != "HEC", ], aes(x = t, y = value, colour = fact
 	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
 	geom_line() + facet_grid(s ~ j, scales="free_y") +
 	guides(colour = "none") +
-	ylim(0, 2) +
+	coord_cartesian(ylim=c(0, 2)) +
 	xlab("analysis time") + ylab("label ratio vs. HSC")
 qdraw(g, file = insert(pdf.fname, c("observed", "label-ratio")))
 
