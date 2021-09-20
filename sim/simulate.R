@@ -41,7 +41,7 @@ stopifnot(length(cell.types) == J);
 cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro", "B-1");
 
 # unknown initial common progenitor size
-n0 <- 1e12;
+n0 <- 1e11;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
@@ -69,9 +69,9 @@ A2 <- A1;
 A2[1, 5] <- 0.2;
 
 
-#A <- A0;
+A <- A0;
 #A <- A1;
-A <- A2;
+#A <- A2;
 
 # ensure that the diagonals are 0
 stopifnot(diag(A) == rep(0, nrow(A)))
