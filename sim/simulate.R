@@ -3,7 +3,7 @@ library(reshape2)
 library(io)
 library(dplyr)
 
-out.fname <- filename("lineage-sim");
+#out.fname <- filename("lineage-sim");
 pdf.fname <- insert(out.fname, ext="pdf");
 
 
@@ -22,7 +22,7 @@ T <- 300;
 L <- 2;     
 
 # time offset in order to account for unobservable period
-s <- 5;
+s <- 30;
 
 # labelling times
 ss <- c(10, 20, 30, 40, 50, 60) + s;
@@ -41,7 +41,7 @@ stopifnot(length(cell.types) == J);
 cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro", "B-1");
 
 # unknown initial common progenitor size
-n0 <- 1e11;
+n0 <- 1e10;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
@@ -52,9 +52,9 @@ lambda <- seq(0.1, 0.9, length.out=N);
 
 A0 <- matrix(
 	c(
-		0, 0.05, 0, 0, 0, 0,
-		0, 0, 0.1, 0.2, 0, 0,
-		0, 0, 0, 0.05, 0, 0,
+		0, 0.01, 0, 0, 0, 0,
+		0, 0, 0.1, 0.01, 0, 0,
+		0, 0, 0, 0.01, 0, 0,
 		0, 0, 0, 0, 0.2, 0,
 		0, 0, 0, 0, 0, 0.2,
 		0, 0, 0, 0, 0, 0
@@ -63,15 +63,15 @@ A0 <- matrix(
 );
 
 A1 <- A0;
-A1[1, 4] <- 0.1;
+A1[1, 4] <- 0.05;
 
 A2 <- A1;
-A2[1, 5] <- 0.2;
+A2[1, 5] <- 0.05;
 
 
-A <- A0;
+#A <- A0;
 #A <- A1;
-#A <- A2;
+A <- A2;
 
 # ensure that the diagonals are 0
 stopifnot(diag(A) == rep(0, nrow(A)))
@@ -84,8 +84,8 @@ beta <- c(0, 0, 0.05, 0.5, 0.1, 0);
 #beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
-nl <- 1e9;
-kappa <- c(1, 1, 0.1, 9, 52);
+nl <- 1e8;
+kappa <- c(10, 10, 1, 9, 52, 100);
 
 params <- list(
 	J = J, N = N, T = T, L = 2, s = s,
