@@ -3,7 +3,7 @@ library(reshape2)
 library(io)
 library(dplyr)
 
-#out.fname <- filename("lineage-sim");
+out.fname <- filename("lineage-sim");
 pdf.fname <- insert(out.fname, ext="pdf");
 
 
