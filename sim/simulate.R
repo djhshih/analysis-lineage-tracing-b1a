@@ -2,6 +2,7 @@ library(ggplot2)
 library(reshape2)
 library(io)
 library(dplyr)
+library(ggsci)
 
 out.fname <- filename("lineage-sim");
 pdf.fname <- insert(out.fname, ext="pdf");
@@ -13,10 +14,10 @@ pdf.fname <- insert(out.fname, ext="pdf");
 J <- 6;
 
 # number of samples
-N <- 4;
+N <- 2;
 
 # number of analysis time points
-T <- 400;
+T <- 500;
 
 # unlabeled cells and labeled cells
 L <- 2;     
@@ -24,9 +25,16 @@ L <- 2;
 # time offset in order to account for unobservable period
 s0 <- 5;
 
+
 # labelling times
 ss <- c(10, 35, 60, 85, 110) + s0;
 #ss <- seq(7, 12) + s;
+
+# shift time s.t. birth occurs t = 0
+t.shift <- -200;
+# pre-natal time is compressed
+t.neg.scale <- 10;
+
 
 names(ss) <- c("E7.5", "E8.5", "E9.5", "E10.5", "E11.5");
 
@@ -49,7 +57,7 @@ n0 <- 1e9;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
-lambda <- seq(0.1, 0.9, length.out=N);
+lambda <- seq(0.2, 0.8, length.out=N);
 
 # differentiation rates
 # rows: from;  columns: to
@@ -226,9 +234,16 @@ fss <- lapply(nss, function(ns) lapply(ns, calculate_fractions));
 
 reshape_fractions <- function(fs, cell.types) {
 	f.d <- melt(fs, varnames=names(dim(fs[[1]])));
+
 	f.d$s <- factor(f.d$L1, levels=names(ss));
 	f.d$L1 <- NULL;
+
 	f.d$j <- cell_factor(f.d$j, cell.types);
+
+	# scale time
+	f.d$t <- f.d$t + t.shift;
+	idx <- f.d$t < 0;
+	f.d$t[idx] <- f.d$t[idx] / t.neg.scale;
 
 	f.d
 }
@@ -261,16 +276,18 @@ for (h in names(fss)) {
 		theme_classic() +
 		geom_line() + facet_grid(j ~ s, scales="free_y") +
 		guides(colour = "none") +
+		scale_colour_npg() +
 		theme(legend.title=element_blank()) +
-		xlab("time") + ylab("# cells")
+		xlab("time") + ylab("compartment size")
 	qdraw(g, width = 7, file = insert(pdf.fname, c(tolower(h), "latent", "label-n")))
 
 	f.d <- reshape_fractions(fs, cell.types);
 
-	g <- ggplot(filter(f.d, n == params$N), aes(x = t, y = value, colour = j)) +
+	g <- ggplot(filter(f.d, n == 1), aes(x = t, y = value, colour = j)) +
 		theme_classic() +
 		geom_line(linetype=2) + facet_grid(s ~ j) +
 		guides(colour = "none") +
+		scale_colour_npg() +
 		xlab("analysis time") + ylab("% labelled")
 	qdraw(g, width = 6, file = insert(pdf.fname, c(tolower(h), "latent", "label-prop")))
 
@@ -286,6 +303,7 @@ for (h in names(fss)) {
 			geom_line(linetype=2) + 
 			facet_grid(s ~ j, scales="free_y") +
 			guides(colour = "none") +
+			scale_colour_npg() +
 			xlab("analysis time") + ylab("label ratio vs. HEC")
 		qdraw(g, file = insert(pdf.fname, c(tolower(h), "latent", "label-ratio")))
 	}
@@ -301,14 +319,30 @@ for (h in names(fss)) {
 
 	fn.obs.d <- reshape_fractions(fns.obs, cell.types.obs);
 
-	g <- ggplot(fn.obs.d[fn.obs.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
+	g <- ggplot(fn.obs.d[fn.obs.d$j != "HEC", ], aes(x = t, y = value, colour = j)) +
 		theme_classic() +
 		geom_hline(yintercept = 1, linetype=3, colour="grey30") +
 		geom_line() + facet_grid(s ~ j, scales="free_y") +
 		guides(colour = "none") +
+		scale_colour_npg() +
 		coord_cartesian(ylim=c(0, 2)) +
 		xlab("analysis time") + ylab("label ratio vs. HSC")
 	qdraw(g, file = insert(pdf.fname, c(tolower(h), "observed", "label-ratio")))
+
+	fn.obs.f.d <- filter(fn.obs.d, t == max(fn.obs.d$t), j != "HEC");
+
+	g <- ggplot(fn.obs.f.d, aes(x = j, fill = j, y = value)) +
+		theme_classic() +
+		geom_col() + facet_wrap(~ s, ncol=1) +
+		geom_hline(yintercept = 1, linetype=3, colour="grey30") +
+		scale_fill_npg() +
+		guides(fill = "none") +
+		theme(
+			axis.text.x = element_text(angle = 40, hjust=1),
+			strip.background = element_blank()
+		) +
+		xlab("") + ylab("label ratio vs. HSC")
+	qdraw(g, width = 1.5, file = insert(pdf.fname, c(tolower(h), "observed", "label-ratio", "end")))
 
 }
 
