@@ -3,7 +3,7 @@ library(reshape2)
 library(io)
 library(dplyr)
 
-#out.fname <- filename("lineage-sim");
+out.fname <- filename("lineage-sim");
 pdf.fname <- insert(out.fname, ext="pdf");
 
 
@@ -16,24 +16,28 @@ J <- 6;
 N <- 4;
 
 # number of analysis time points
-T <- 300;
+T <- 400;
 
 # unlabeled cells and labeled cells
 L <- 2;     
 
 # time offset in order to account for unobservable period
-s <- 30;
+s0 <- 5;
 
 # labelling times
-ss <- c(10, 20, 30, 40, 50, 60) + s;
+ss <- c(10, 35, 60, 85, 110) + s0;
 #ss <- seq(7, 12) + s;
 
-stopifnot(s > 1 && s < T)
+names(ss) <- c("E7.5", "E8.5", "E9.5", "E10.5", "E11.5");
+
+stopifnot(s0 > 1 && s0 < T)
 
 
 # --- Random variables
 
 set.seed(6)
+
+compart.names <- c("unlabeled", "labeled");
 
 cell.types <- c("HEC", "fetal HSC", "adult HSC", "MPP", "B-1 pro", "B-1");
 stopifnot(length(cell.types) == J);
@@ -41,7 +45,7 @@ stopifnot(length(cell.types) == J);
 cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro", "B-1");
 
 # unknown initial common progenitor size
-n0 <- 1e10;
+n0 <- 1e9;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
@@ -68,13 +72,14 @@ A1[1, 4] <- 0.05;
 A2 <- A1;
 A2[1, 5] <- 0.05;
 
+As <- list(H0=A0, H1=A1, H2=A2);
 
-#A <- A0;
-#A <- A1;
-A <- A2;
-
-# ensure that the diagonals are 0
-stopifnot(diag(A) == rep(0, nrow(A)))
+lapply(As,
+	function(A) {
+		# ensure that the diagonals are 0
+		stopifnot(diag(A) == rep(0, nrow(A)))
+	}
+)
 
 # net proliferation rate
 # assume that beta is invariant across time
@@ -84,13 +89,13 @@ beta <- c(0, 0, 0.05, 0.5, 0.1, 0);
 #beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
-nl <- 1e8;
+nl <- 5e6;
 kappa <- c(10, 10, 1, 9, 52, 100);
 
-params <- list(
-	J = J, N = N, T = T, L = 2, s = s,
+params0 <- list(
+	J = J, N = N, T = T, L = 2,
 	n0 = n0, nl = nl,
-	lambda = lambda, A = A, beta = beta,
+	lambda = lambda, beta = beta,
 	kappa = kappa
 );
 
@@ -105,7 +110,7 @@ cell_factor <- function(j, cell.types) {
 update_ntl_exp <- function(n.tm1.l, n.tm1, params) {
 	pmax(
 		0,
-		n.tm1.l + t(t(n.tm1.l) * beta) + n.tm1.l %*% A  - t(t(n.tm1.l) * params$alpha.out
+		n.tm1.l + t(t(n.tm1.l) * beta) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
 	))
 }
 
@@ -115,7 +120,7 @@ update_ntl_exp <- function(n.tm1.l, n.tm1, params) {
 update_ntl_logistic <- function(n.tm1.l, n.tm1, params) {
 	pmax(
 		0,
-		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% A  - t(t(n.tm1.l) * params$alpha.out
+		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
 	))
 }
 
@@ -184,44 +189,49 @@ simulate_trajectory <- function(params, update_ntl) {
 
 # --- 
 
+params <- within(params0, {
+	ss <- ss;
+	As <- As;
+});
 
-ns <- lapply(ss,
-	function(s) {
-		params2 <- params;
-		params2$s <- s;
-		simulate_trajectory(params2, update_ntl_logistic)
-		#simulate_trajectory(params2, update_ntl_exp)
+qwrite(params, insert(out.fname, tag="params", ext="rds"));
+
+nss <- lapply(As,
+	function(A) {
+		ns <- lapply(ss,
+			function(s) {
+				params <- within(params0, {
+					s <- s;
+					A <- A;
+				});
+				simulate_trajectory(params, update_ntl_logistic)
+			}
+		);
+		
+		ns
 	}
 );
-names(ns) <- ss;
 
 calculate_fractions <- function(n) {
 	n[, , , dim(n)[4]] / pmax(1, apply(n, c(1, 2, 3), sum));
 }
 
-fs <- lapply(ns, calculate_fractions);
+#fs <- lapply(ns, calculate_fractions);
+fss <- lapply(nss, function(ns) lapply(ns, calculate_fractions));
+
+
+
 
 # --- Generate plots
 
-graphics.off()
-
-
 reshape_fractions <- function(fs, cell.types) {
 	f.d <- melt(fs, varnames=names(dim(fs[[1]])));
-	f.d$s <- as.integer(f.d$L1); f.d$L1 <- NULL;
+	f.d$s <- factor(f.d$L1, levels=names(ss));
+	f.d$L1 <- NULL;
 	f.d$j <- cell_factor(f.d$j, cell.types);
 
 	f.d
 }
-
-f.d <- reshape_fractions(fs, cell.types);
-
-g <- ggplot(filter(f.d, n == params$N), aes(x = t, y = value, colour = j)) +
-	theme_classic() +
-	geom_line(linetype=2) + facet_grid(s ~ j) +
-	guides(colour = "none") +
-	xlab("analysis time") + ylab("% labelled")
-qdraw(g, width = 6, file = insert(pdf.fname, c("latent", "label-prop")))
 
 # normalize fractions against the jth component,
 # and average over samples
@@ -230,55 +240,75 @@ normalize_fractions <- function(f, j) {
 	apply(fn, c(2, 3), mean)
 }
 
-# normalize against the common progenitor
-fns <- lapply(fs, function(f) normalize_fractions(f, 1));
-
-fn.d <- reshape_fractions(fns, cell.types);
-
-g <- ggplot(fn.d, aes(x = t, y = value, colour = j)) +
-	theme_classic() +
-	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
-	geom_line(linetype=2) + 
-	facet_grid(s ~ j, scales="free_y") +
-	guides(colour = "none") +
-	xlab("analysis time") + ylab("label ratio vs. HEC")
-#qdraw(g, file = insert(pdf.fname, c("latent", "label-ratio")))
-
+# combine two populations together
 combine_populations <- function(n, from, to) {
 	n[, to, , ] <- n[, to, , ] + n[, from, , ];
 	n[, -from, , ]
 }
 
 
-# combine second and third populations because
-# they are not distinguishable during observation
-ns.obs <- lapply(ns, combine_populations, from=3, to=2);
+graphics.off()
 
-plot(ns[[1]][1, 1, , 1], type="l")
-plot(ns[[1]][1, 2, , 1], type="l")
-plot(ns[[1]][1, 3, , 1], type="l")
-plot(ns[[1]][1, 4, , 1], type="l")
-plot(ns[[1]][1, 5, , 1], type="l")
-plot(ns[[1]][1, 6, , 1], type="l")
+for (h in names(fss)) {
 
-plot(ns[[1]][1, 2, , 2] + ns[[1]][1, 3, , 2], type="l")
-#plot(ns.obs[[1]][1, 2, , 1], type="l")
+	fs <- fss[[h]];
+	ns <- nss[[h]];
 
-fs.obs <- lapply(ns.obs, calculate_fractions);
+	n.d <- reshape_fractions(ns, cell.types);
+	n.d$l <- factor(n.d$l, labels=compart.names);
 
-# normalize against the second progenitor
-fns.obs <- lapply(fs.obs, function(f) normalize_fractions(f, 2));
+	g <- ggplot(filter(n.d, n == params$N), aes(x = t, y = value, colour = j, linetype=l)) +
+		theme_classic() +
+		geom_line() + facet_grid(j ~ s, scales="free_y") +
+		guides(colour = "none") +
+		theme(legend.title=element_blank()) +
+		xlab("time") + ylab("# cells")
+	qdraw(g, width = 7, file = insert(pdf.fname, c(tolower(h), "latent", "label-n")))
 
-fn.obs.d <- reshape_fractions(fns.obs, cell.types.obs);
+	f.d <- reshape_fractions(fs, cell.types);
 
-g <- ggplot(fn.obs.d[fn.obs.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
-	theme_classic() +
-	geom_hline(yintercept = 1, linetype=3, colour="grey30") +
-	geom_line() + facet_grid(s ~ j, scales="free_y") +
-	guides(colour = "none") +
-	coord_cartesian(ylim=c(0, 2)) +
-	xlab("analysis time") + ylab("label ratio vs. HSC")
-qdraw(g, file = insert(pdf.fname, c("observed", "label-ratio")))
+	g <- ggplot(filter(f.d, n == params$N), aes(x = t, y = value, colour = j)) +
+		theme_classic() +
+		geom_line(linetype=2) + facet_grid(s ~ j) +
+		guides(colour = "none") +
+		xlab("analysis time") + ylab("% labelled")
+	qdraw(g, width = 6, file = insert(pdf.fname, c(tolower(h), "latent", "label-prop")))
 
-qwrite(params, insert(out.fname, tag="params", ext="rds"));
+	if (FALSE) {
+		# normalize against the common progenitor
+		fns <- lapply(fs, function(f) normalize_fractions(f, 1));
+
+		fn.d <- reshape_fractions(fns, cell.types);
+
+		g <- ggplot(fn.d, aes(x = t, y = value, colour = j)) +
+			theme_classic() +
+			geom_hline(yintercept = 1, linetype=3, colour="grey30") +
+			geom_line(linetype=2) + 
+			facet_grid(s ~ j, scales="free_y") +
+			guides(colour = "none") +
+			xlab("analysis time") + ylab("label ratio vs. HEC")
+		qdraw(g, file = insert(pdf.fname, c(tolower(h), "latent", "label-ratio")))
+	}
+
+	# combine second and third populations because
+	# they are not distinguishable during observation
+	ns.obs <- lapply(ns, combine_populations, from=3, to=2);
+
+	fs.obs <- lapply(ns.obs, calculate_fractions);
+
+	# normalize against the second progenitor
+	fns.obs <- lapply(fs.obs, function(f) normalize_fractions(f, 2));
+
+	fn.obs.d <- reshape_fractions(fns.obs, cell.types.obs);
+
+	g <- ggplot(fn.obs.d[fn.obs.d$j != "HEC", ], aes(x = t, y = value, colour = factor(j))) +
+		theme_classic() +
+		geom_hline(yintercept = 1, linetype=3, colour="grey30") +
+		geom_line() + facet_grid(s ~ j, scales="free_y") +
+		guides(colour = "none") +
+		coord_cartesian(ylim=c(0, 2)) +
+		xlab("analysis time") + ylab("label ratio vs. HSC")
+	qdraw(g, file = insert(pdf.fname, c(tolower(h), "observed", "label-ratio")))
+
+}
 
