@@ -53,7 +53,7 @@ stopifnot(length(cell.types) == J);
 cell.types.obs <- c("HEC", "HSC", "MPP", "B-1 pro", "B-1");
 
 # unknown initial common progenitor size
-n0 <- 1e9;
+n0 <- 1e6;
 
 # unknown labeling efficiency
 #lambda <- runif(N);
@@ -65,8 +65,8 @@ lambda <- seq(0.2, 0.8, length.out=N);
 A0 <- matrix(
 	c(
 		0, 0.01, 0, 0, 0, 0,
-		0, 0, 0.1, 0.01, 0, 0,
-		0, 0, 0, 0.01, 0, 0,
+		0, 0, 0.01, 0.2, 0, 0,
+		0, 0, 0, 0.1, 0, 0,
 		0, 0, 0, 0, 0.2, 0,
 		0, 0, 0, 0, 0, 0.2,
 		0, 0, 0, 0, 0, 0
@@ -92,12 +92,12 @@ lapply(As,
 # net proliferation rate
 # assume that beta is invariant across time
 #beta <- runif(J, -0.5, 0.5);  # arbitrary upperbound
-beta <- c(0, 0, 0.05, 0.5, 0.1, 0);
+beta <- c(-0.01, -0.01, 0.2, 0.5, 0.1, 0);
 #beta <- c(0, 0.1, 0.3, 0.05, 0);
 #beta <- c(0, 0.01, 0.04, 1, 0);
 
 # relative limiting capacities
-nl <- 5e6;
+nl <- 1e5;
 kappa <- c(10, 10, 1, 9, 52, 100);
 
 params0 <- list(
@@ -128,7 +128,7 @@ update_ntl_exp <- function(n.tm1.l, n.tm1, params) {
 update_ntl_logistic <- function(n.tm1.l, n.tm1, params) {
 	pmax(
 		0,
-		n.tm1.l + t(t(n.tm1.l) * beta * (1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
+		n.tm1.l + t(t(n.tm1.l) * beta * pmax(0, 1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
 	))
 }
 
