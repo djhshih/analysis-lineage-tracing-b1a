@@ -224,10 +224,7 @@ calculate_fractions <- function(n) {
 	n[, , , dim(n)[4]] / pmax(1, apply(n, c(1, 2, 3), sum));
 }
 
-#fs <- lapply(ns, calculate_fractions);
 fss <- lapply(nss, function(ns) lapply(ns, calculate_fractions));
-
-
 
 
 # --- Generate plots
