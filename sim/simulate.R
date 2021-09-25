@@ -45,7 +45,7 @@ stopifnot(s0 > 1 && s0 < T)
 
 set.seed(6)
 
-compart.names <- c("unlabeled", "labeled");
+compart.names <- c("Tomato-", "Tomato+");
 
 cell.types <- c("HEC", "fetal HSC", "adult HSC", "MPP", "B-1 pro", "B-1");
 stopifnot(length(cell.types) == J);
