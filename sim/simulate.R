@@ -288,7 +288,7 @@ for (h in names(fss)) {
 		geom_line(linetype=2) + facet_grid(s ~ j) +
 		guides(colour = "none") +
 		scale_colour_npg() +
-		xlab("analysis time") + ylab("% labelled")
+		xlab("analysis time") + ylab("Tomato %")
 	qdraw(g, width = 6, file = insert(pdf.fname, c(tolower(h), "latent", "label-prop")))
 
 	if (FALSE) {
@@ -304,7 +304,7 @@ for (h in names(fss)) {
 			facet_grid(s ~ j, scales="free_y") +
 			guides(colour = "none") +
 			scale_colour_npg() +
-			xlab("analysis time") + ylab("label ratio vs. HEC")
+			xlab("analysis time") + ylab("Tomato ratio vs. HEC")
 		qdraw(g, file = insert(pdf.fname, c(tolower(h), "latent", "label-ratio")))
 	}
 
@@ -326,7 +326,7 @@ for (h in names(fss)) {
 		guides(colour = "none") +
 		scale_colour_npg() +
 		coord_cartesian(ylim=c(0, 2)) +
-		xlab("analysis time") + ylab("label ratio vs. HSC")
+		xlab("analysis time") + ylab("Tomato ratio vs. HSC")
 	qdraw(g, file = insert(pdf.fname, c(tolower(h), "observed", "label-ratio")))
 
 	fn.obs.f.d <- filter(fn.obs.d, t == max(fn.obs.d$t), j != "HEC");
@@ -341,7 +341,7 @@ for (h in names(fss)) {
 			axis.text.x = element_text(angle = 40, hjust=1),
 			strip.background = element_blank()
 		) +
-		xlab("") + ylab("label ratio vs. HSC")
+		xlab("") + ylab("Tomato ratio vs. HSC")
 	qdraw(g, width = 1.5, file = insert(pdf.fname, c(tolower(h), "observed", "label-ratio", "end")))
 
 }
