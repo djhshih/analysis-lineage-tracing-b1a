@@ -118,7 +118,7 @@ cell_factor <- function(j, cell.types) {
 update_ntl_exp <- function(n.tm1.l, n.tm1, params) {
 	pmax(
 		0,
-		n.tm1.l + t(t(n.tm1.l) * beta) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
+		n.tm1.l + t(t(n.tm1.l) * params$beta) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
 	))
 }
 
@@ -128,7 +128,7 @@ update_ntl_exp <- function(n.tm1.l, n.tm1, params) {
 update_ntl_logistic <- function(n.tm1.l, n.tm1, params) {
 	pmax(
 		0,
-		n.tm1.l + t(t(n.tm1.l) * beta * pmax(0, 1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
+		n.tm1.l + t(t(n.tm1.l) * params$beta * pmax(0, 1 - t(n.tm1) / params$kappa.p)) + n.tm1.l %*% params$A  - t(t(n.tm1.l) * params$alpha.out
 	))
 }
 
