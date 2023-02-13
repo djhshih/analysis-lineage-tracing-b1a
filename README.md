@@ -5,7 +5,7 @@ Analysis code for the publication:
 **HSC-independent definitive hematopoiesis persists into adult life**.  
 Michihiro Kobayashi, Haichao Wei, Takashi Yamanashi, Nathalia Azevedo Portilho,
 Samuel Cornelius, Noemi Valiente, Chika Nishida1, Haizi Cheng, Augusto Latorre, 
-W. Jim Zheng, Joonsoo Kang, Jun Seita, David J Shih, Jia Qian Wu,
+W. Jim Zheng, Joonsoo Kang, Jun Seita, David J. Shih, Jia Qian Wu,
 Momoko Yoshimoto.  
 Cell Reports. 2023; accepted.
 
