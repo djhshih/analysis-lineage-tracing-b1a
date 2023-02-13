@@ -20,3 +20,9 @@ tracing experiment.
 `diff`: Discrete-time simulation of hematopoeitic differentiation based on
 exponential growth or logistic growth.
 
+## Requirements
+
+R v4.2.2
+
+See `requirements.txt` for required R packages.
+
