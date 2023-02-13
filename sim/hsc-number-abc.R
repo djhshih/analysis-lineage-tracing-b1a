@@ -1,29 +1,36 @@
 library(io)
+library(ggplot2)
+library(ggsci)
 
 # times are in days
 tsize <- 24;
 
 # number of samples
 N <- 5e7;
-#N <- 1e7;
 
 # number of cell types
 J <- 5;
 
 cells <- c("HSC", "ST-HSC", "MMP", NA, "CLP");
-# HSC, ST-HSC, MMP, CMP, CLP
+# CMP could not be measured, so it iset to NA
+
+# observed cell counts from flow cytometry experiment
 target <- c(4291, 10562, 99220, NA, 44683);
-#target <- c(4291, NA, NA, NA, NA);
 target.sd <- c(791, 695, 25019, NA, 30116);
 alpha <- 0.01;
 delta <- qnorm(1 - alpha/2);
 
-resume <- TRUE;
+# whether to resume a previous run
+resume <- FALSE;
+
 accepted.fn <- "accepted.rds";
 
 thresholds <- delta * target.sd / target;
 
-# differentiation and net proliferation rates from Busch et al. 2015
+# lower and upper bounds for proliferation / differentiation rates
+# A[i, i] is the proliferation rate for cell i
+# A[i, j] is the differentiation rate from cell i to j
+
 A.lower <- matrix(
 	c(
 		# HSC
@@ -56,6 +63,7 @@ A.upper <- matrix(
 	ncol=J, byrow=TRUE
 );
 
+# bounds for n0
 n0.lower <- 1;
 n0.upper <- 100;
 
@@ -63,6 +71,7 @@ n0.upper <- 100;
 T.lower <- 5 * tsize;
 T.upper <- 6 * tsize;
 
+# draw a sample of parameter values from the parameter space
 sample_params <- function() {
 	A0 <- matrix(runif(prod(dim(A.lower)), min=A.lower, max=A.upper), nrow=nrow(A.lower));
 
@@ -85,6 +94,7 @@ sample_params <- function() {
 	)
 }
 
+# update cell count n based on exponential growth
 update_n_exp <- function(n, params) {
 	n.net.prolif <- rpois(length(n), n * params$beta);
 	# n.efflux <= n
@@ -104,6 +114,7 @@ update_n_exp <- function(n, params) {
 	n + n.net.prolif - n.efflux + n.influx
 }
 
+# perform the simulation
 sim <- function(params) {
 	# initialize
 	n <- integer(J);
@@ -118,14 +129,14 @@ sim <- function(params) {
 }
 
 if (resume) {
-	set.seed();
+	set.seed(1);
 	accepted <- qread(accepted.fn);
 } else {
 	accepted <- list();
 }
 
+# main loop of Approximate Bayesian Computation
 for (i in 1:N) {
-
 	if (i %% 1000 == 0) {
 		message("round ", i)
 	}
@@ -141,8 +152,13 @@ for (i in 1:N) {
 	}
 }
 
+# save simulation results
+qwrite(accepted, "accepted.rds")
+
 length(accepted)
 
+# extra sampled parameter values from ABC
+# these parameter samples come from the posterior distribution
 n0 <- unlist(lapply(accepted, function(x) x$n0));
 beta1 <- unlist(lapply(accepted, function(x) x$beta[1])) * tsize;
 alpha.out1 <- unlist(lapply(accepted, function(x) x$alpha.out[1])) * tsize;
@@ -153,13 +169,12 @@ rowMeans(betas)
 
 plot(betas[1, ], betas[2, ])
 
+# posterior predictive distribution of the cell counts
 ns <- matrix(unlist(lapply(accepted, function(x) x$n)), ncol=length(accepted));
 pred <- rowMeans(ns)
 pred.sd <- apply(ns, 1, sd);
 
-library(ggplot2)
-library(ggsci)
-
+# assemble data frame
 d <- rbind(
 	data.frame(
 		x = factor(cells, levels=cells[!is.na(cells)]),
@@ -179,6 +194,8 @@ d <- rbind(
 
 d <- d[complete.cases(d), ];
 
+# plot Figure S6A
+
 qdraw(
 	ggplot(d, aes(x=x, y=y, ymin=ymin, ymax=ymax, fill=group)) + theme_classic() +
 		geom_col(position=position_dodge()) + 
@@ -194,21 +211,7 @@ qdraw(
 mean(n0)
 print(quantile(n0, c(0.025, 0.975)))
 
-qdraw(
-	ggplot(data.frame(x=n0), aes(x=x)) + theme_classic() +
-		geom_histogram(binwidth=3) +
-		#geom_vline(xintercept=quantile(n0, c(0.025, 0.975)), col="firebrick") +
-		xlab("initial HSC number")
-	,
-	file="hsc-number_n0_hist.pdf"
-)
-
-hist(n0, breaks=50)
-plot(density(n0, from=1, to=100, bw=4))
-hist(beta1, breaks=50)
-plot(n0, beta1)
-
-smoothScatter(n0, beta1)
+# plot Figure S6B
 
 d <- MASS::kde2d(n0, beta1, n=60);
 qdraw(
@@ -225,18 +228,14 @@ qdraw(
 	file = "hsc-number_contour_n0-beta1.pdf"
 );
 
-hist(n0[beta1 < 3], breaks=100)
+# plot Figure S6C
 
-quantile(n0, c(0.05))
-mean(n0 <= 1)
-summary(n0)
-
-idx <- n0 == 1;
-beta1[idx]
-
-hist(alpha.out1)
-plot(n0, alpha.out1)
-dev.off()
-
-qwrite(accepted, "accepted.rds")
+qdraw(
+	ggplot(data.frame(x=n0), aes(x=x)) + theme_classic() +
+		geom_histogram(binwidth=3) +
+		#geom_vline(xintercept=quantile(n0, c(0.025, 0.975)), col="firebrick") +
+		xlab("initial HSC number")
+	,
+	file="hsc-number_n0_hist.pdf"
+)
 
