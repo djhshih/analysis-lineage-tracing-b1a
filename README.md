@@ -7,7 +7,9 @@ Michihiro Kobayashi, Haichao Wei, Takashi Yamanashi, Nathalia Azevedo Portilho,
 Samuel Cornelius, Noemi Valiente, Chika Nishida1, Haizi Cheng, Augusto Latorre, 
 W. Jim Zheng, Joonsoo Kang, Jun Seita, David J. Shih, Jia Qian Wu,
 Momoko Yoshimoto.  
-Cell Reports. 2023; accepted.
+Cell Rep. 2023 Mar 28;42(3):112239.  
+PMID: 36906851 PMCID: PMC10122268 DOI: 10.1016/j.celrep.2023.112239  
+
 
 ## Contents
 
